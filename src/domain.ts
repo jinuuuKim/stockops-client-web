@@ -7,6 +7,12 @@ export type NavItem = {
   roles?: string[]
 }
 
+export type ClientViewId = 'inventory' | 'orders'
+
+export function isClientViewId(value: string): value is ClientViewId {
+  return value === 'inventory' || value === 'orders'
+}
+
 export const navItems: NavItem[] = [
   { id: 'inventory', label: '재고 조회', permission: 'INVENTORY_READ' },
   { id: 'orders', label: '발주', permission: 'PURCHASE_ORDER_READ' },

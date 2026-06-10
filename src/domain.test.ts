@@ -4,6 +4,7 @@ import {
   canManagePurchaseOrder,
   canUseChatbot,
   filterInventory,
+  isClientViewId,
   isLowStock,
   validatePurchaseOrderDraft,
   visibleMenuItems,
@@ -77,5 +78,14 @@ describe('purchase order permissions', () => {
   it('rejects non-creators without the store manager role', () => {
     expect(canManagePurchaseOrder({ ...user, id: 2, role: 'STORE_STAFF' }, order)).toBe(false)
     expect(canManagePurchaseOrder(null, order)).toBe(false)
+  })
+})
+
+describe('client view guard', () => {
+  it('allows only supported client app views', () => {
+    expect(isClientViewId('inventory')).toBe(true)
+    expect(isClientViewId('orders')).toBe(true)
+    expect(isClientViewId('chat')).toBe(false)
+    expect(isClientViewId('unknown')).toBe(false)
   })
 })

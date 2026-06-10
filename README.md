@@ -38,3 +38,8 @@ npm run build
 docker build -t stockops-client-web --build-arg VITE_API_BASE_URL=/api .
 docker run --rm -p 18082:80 stockops-client-web
 ```
+## Environment And Secrets
+
+See [docs/ENVIRONMENT_SETUP.md](docs/ENVIRONMENT_SETUP.md) for local `.env`, GitHub Actions secrets, and deployment environment setup.
+
+Never commit `.env`, real credentials, Terraform state, or AI-agent local configuration files.

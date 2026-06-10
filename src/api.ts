@@ -88,17 +88,9 @@ export async function updatePurchaseOrder(orderId: number, data: Partial<Purchas
   })
 }
 
-export async function fetchChatHistory(): Promise<ChatMessage[]> {
-  return apiRequest<ChatMessage[]>('/v1/ai/chat/history')
-}
-
-export async function sendChatMessage(content: string): Promise<ChatMessage> {
+export async function sendChatMessage(content: string, context: ChatMessage[]): Promise<ChatMessage> {
   return apiRequest<ChatMessage>('/v1/ai/chat', {
     method: 'POST',
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, context }),
   })
-}
-
-export async function clearChatHistory(): Promise<void> {
-  await apiRequest<void>('/v1/ai/chat/history', { method: 'DELETE' })
 }

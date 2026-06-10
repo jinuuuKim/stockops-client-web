@@ -16,10 +16,8 @@ import {
 import {
   addPurchaseOrderItem,
   cancelPurchaseOrder,
-  clearChatHistory,
   createPurchaseOrder,
   fetchCenters,
-  fetchChatHistory,
   fetchInventory,
   fetchProducts,
   fetchPurchaseOrders,
@@ -30,17 +28,20 @@ import {
   sendChatMessage,
   submitPurchaseOrder,
 } from './api'
+import { appendChatMessage, clearChatMessages, loadChatMessages } from './chatSessionStorage'
 import {
   canManagePurchaseOrder,
   canUseChatbot,
   filterInventory,
+  isClientViewId,
   validatePurchaseOrderDraft,
   visibleMenuItems,
+  type ClientViewId,
   type PurchaseOrderDraft,
 } from './domain'
 import type { AuthenticatedUser, ChatMessage, PurchaseOrder } from './types'
 
-type ViewId = 'inventory' | 'orders'
+type ViewId = ClientViewId
 
 const emptyDraft: PurchaseOrderDraft = {
   centerId: '',
@@ -99,7 +100,9 @@ export default function App() {
             className={currentView === item.id ? 'active' : ''}
               key={item.id}
               onClick={() => {
-                setView(item.id as ViewId)
+                if (isClientViewId(item.id)) {
+                  setView(item.id)
+                }
                 setMobileNavOpen(false)
               }}
             >
@@ -283,6 +286,8 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
   const warehouses = useQuery({ queryKey: ['warehouses'], queryFn: fetchWarehouses })
   const products = useQuery({ queryKey: ['products'], queryFn: fetchProducts })
 
+  const hasEntryLoadError = orders.isError || centers.isError || warehouses.isError || products.isError
+
   const displayedOrder = useMemo(() => {
     if (!selectedOrder) {
       return null
@@ -333,6 +338,11 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
     <div className="grid-two">
       <section className="panel">
         <h2>발주 신청</h2>
+        {hasEntryLoadError && (
+          <p className="error-text" role="alert">
+            발주 화면을 불러오는 중 일부 데이터 조회에 실패했습니다. 잠시 후 다시 시도하세요.
+          </p>
+        )}
         <form
           className="stack-form"
           onSubmit={(event) => {
@@ -507,49 +517,42 @@ function ChatbotOverlay({ enabled }: { enabled: boolean }) {
 }
 
 function ChatSession() {
-  const queryClient = useQueryClient()
-  const history = useQuery({ queryKey: ['chat-history'], queryFn: fetchChatHistory, retry: false })
   const [draft, setDraft] = useState('')
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatMessages())
 
-  const messages = [...(history.data ?? []), ...localMessages]
   const sendMutation = useMutation({
-    mutationFn: sendChatMessage,
+    mutationFn: (content: string) => sendChatMessage(content, messages),
     onMutate: (content) => {
-      setLocalMessages((current) => [
-        ...current,
-        { messageId: crypto.randomUUID(), role: 'user', content, createdAt: new Date().toISOString() },
-      ])
+      const userMessage: ChatMessage = {
+        messageId: crypto.randomUUID(),
+        role: 'user',
+        content,
+        createdAt: new Date().toISOString(),
+      }
+      setMessages(appendChatMessage(userMessage))
     },
     onSuccess: (message) => {
-      setLocalMessages((current) => [...current, message])
-      queryClient.invalidateQueries({ queryKey: ['chat-history'] })
+      setMessages(appendChatMessage(message))
     },
     onError: () => {
-      setLocalMessages((current) => [
-        ...current,
-        {
-          messageId: crypto.randomUUID(),
-          role: 'assistant',
-          content: 'AI 채팅 API가 아직 준비되지 않았거나 접근 권한이 없습니다.',
-          createdAt: new Date().toISOString(),
-        },
-      ])
+      const fallbackMessage: ChatMessage = {
+        messageId: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'AI 채팅 API가 아직 준비되지 않았거나 접근 권한이 없습니다.',
+        createdAt: new Date().toISOString(),
+      }
+      setMessages(appendChatMessage(fallbackMessage))
     },
   })
 
-  const clearMutation = useMutation({
-    mutationFn: clearChatHistory,
-    onSuccess: () => {
-      setLocalMessages([])
-      queryClient.invalidateQueries({ queryKey: ['chat-history'] })
-    },
-  })
+  function clearSessionChat(): void {
+    clearChatMessages()
+    setMessages([])
+  }
 
   return (
     <>
       <div className="chat-history">
-        {history.isError && <p className="hint">서버 히스토리 API가 아직 준비되지 않아 새 대화만 표시합니다.</p>}
         {messages.map((message) => (
           <div className={`message ${message.role}`} key={message.messageId}>
             <span>{message.content}</span>
@@ -572,7 +575,7 @@ function ChatSession() {
         <button className="icon-button" disabled={sendMutation.isPending} aria-label="메시지 보내기">
           <Send size={18} />
         </button>
-        <button className="ghost-button" type="button" onClick={() => clearMutation.mutate()}>
+        <button className="ghost-button" type="button" onClick={clearSessionChat}>
           삭제
         </button>
       </form>

@@ -92,3 +92,8 @@ export type ChatMessage = {
   content: string
   createdAt: string
 }
+
+export type ChatRequest = {
+  content: string
+  context: ChatMessage[]
+}
