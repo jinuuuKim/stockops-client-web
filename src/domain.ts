@@ -58,6 +58,30 @@ export function canManagePurchaseOrder(user: AuthenticatedUser | null, order: Pu
   return user.id === order.requestedBy || normalizeRole(user.role) === 'STORE_MANAGER'
 }
 
+/**
+ * Statuses at/after administrator approval — a store request can no longer be cancelled.
+ */
+const NON_CANCELLABLE_ORDER_STATUSES = new Set([
+  'ACCEPTED',
+  'PARTIALLY_ACCEPTED',
+  'SHIPMENT_CREATED',
+  'INBOUND_PENDING',
+  'COMPLETED',
+  'REJECTED',
+  'CANCELLED',
+])
+
+/**
+ * Whether the current user may cancel this order: only the owner/store-manager, and only before
+ * the order is approved (mirrors the server-side rule).
+ */
+export function canCancelPurchaseOrder(user: AuthenticatedUser | null, order: PurchaseOrder): boolean {
+  if (!canManagePurchaseOrder(user, order)) {
+    return false
+  }
+  return !NON_CANCELLABLE_ORDER_STATUSES.has((order.status ?? '').toUpperCase())
+}
+
 export function isLowStock(item: InventoryItem): boolean {
   const available = item.availableQuantity ?? item.quantity - (item.reservedQuantity ?? 0)
   const safety = item.safetyStockQuantity ?? 0

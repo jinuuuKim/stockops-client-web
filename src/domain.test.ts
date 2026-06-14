@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canAccess,
+  canCancelPurchaseOrder,
   canManagePurchaseOrder,
   canUseChatbot,
   filterInventory,
@@ -78,6 +79,15 @@ describe('purchase order permissions', () => {
   it('rejects non-creators without the store manager role', () => {
     expect(canManagePurchaseOrder({ ...user, id: 2, role: 'STORE_STAFF' }, order)).toBe(false)
     expect(canManagePurchaseOrder(null, order)).toBe(false)
+  })
+
+  it('allows cancelling only before approval', () => {
+    expect(canCancelPurchaseOrder(user, { ...order, status: 'REQUESTED' })).toBe(true)
+    expect(canCancelPurchaseOrder(user, { ...order, status: 'DRAFT' })).toBe(true)
+    expect(canCancelPurchaseOrder(user, { ...order, status: 'ACCEPTED' })).toBe(false)
+    expect(canCancelPurchaseOrder(user, { ...order, status: 'COMPLETED' })).toBe(false)
+    // a non-manager non-owner cannot cancel even a pre-approval order
+    expect(canCancelPurchaseOrder({ ...user, id: 2, role: 'STORE_STAFF' }, { ...order, status: 'REQUESTED' })).toBe(false)
   })
 })
 

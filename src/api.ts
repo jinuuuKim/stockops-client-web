@@ -68,6 +68,15 @@ export async function createPurchaseOrder(centerId: string, warehouseId: string)
   return apiRequest<PurchaseOrder>(`/v1/purchase-orders?${params.toString()}`, { method: 'POST' })
 }
 
+/**
+ * Creates a store-originated purchase request. The originating store comes from the logged-in
+ * user's membership; the center/warehouse are designated later by an administrator at approval,
+ * so the store user does not pick them.
+ */
+export async function createStoreRequest(): Promise<PurchaseOrder> {
+  return apiRequest<PurchaseOrder>('/v1/purchase-orders/store-request', { method: 'POST' })
+}
+
 export async function addPurchaseOrderItem(orderId: number, productId: string, quantity: string): Promise<PurchaseOrder> {
   const params = new URLSearchParams({ productId, quantity })
   return apiRequest<PurchaseOrder>(`/v1/purchase-orders/${orderId}/items?${params.toString()}`, { method: 'POST' })
