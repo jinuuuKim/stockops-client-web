@@ -1,4 +1,4 @@
-import type { Center, ChatMessage, InventoryItem, LoginResponse, Product, PurchaseOrder, Warehouse } from './types'
+import type { Center, InventoryItem, LoginResponse, Product, PurchaseOrder, Warehouse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -57,7 +57,14 @@ export async function logout(): Promise<void> {
 export const fetchInventory = () => apiRequest<InventoryItem[]>('/v1/inventory')
 export const fetchCenters = () => apiRequest<Center[]>('/v1/centers')
 export const fetchWarehouses = () => apiRequest<Warehouse[]>('/v1/warehouses')
-export const fetchProducts = () => apiRequest<Product[]>('/v1/products')
+
+// /v1/products is a paged endpoint (Spring Page); unwrap content into the flat list the UI uses.
+// A large page size is requested so the ordering dropdown shows the full catalog.
+export const fetchProducts = async (): Promise<Product[]> => {
+  const page = await apiRequest<{ content?: Product[] }>('/v1/products?page=0&size=1000')
+  return Array.isArray(page) ? (page as Product[]) : page.content ?? []
+}
+
 export const fetchPurchaseOrders = () => apiRequest<PurchaseOrder[]>('/v1/purchase-orders')
 
 export async function createPurchaseOrder(centerId: string, warehouseId: string): Promise<PurchaseOrder> {
@@ -94,12 +101,5 @@ export async function updatePurchaseOrder(orderId: number, data: Partial<Purchas
   return apiRequest<PurchaseOrder>(`/v1/purchase-orders/${orderId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
-  })
-}
-
-export async function sendChatMessage(content: string, context: ChatMessage[]): Promise<ChatMessage> {
-  return apiRequest<ChatMessage>('/v1/ai/chat', {
-    method: 'POST',
-    body: JSON.stringify({ content, context }),
   })
 }

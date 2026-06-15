@@ -5,11 +5,9 @@ import {
   Boxes,
   LogOut,
   Menu,
-  MessageCircle,
   PackageCheck,
   RefreshCw,
   Search,
-  Send,
   ShoppingCart,
   X,
 } from 'lucide-react'
@@ -25,13 +23,10 @@ import {
   login,
   logout,
   refreshSession,
-  sendChatMessage,
   submitPurchaseOrder,
 } from './api'
-import { appendChatMessage, clearChatMessages, loadChatMessages } from './chatSessionStorage'
 import {
-  canManagePurchaseOrder,
-  canUseChatbot,
+  canCancelPurchaseOrder,
   filterInventory,
   isClientViewId,
   validatePurchaseOrderDraft,
@@ -39,7 +34,7 @@ import {
   type ClientViewId,
   type PurchaseOrderDraft,
 } from './domain'
-import type { AuthenticatedUser, ChatMessage, PurchaseOrder } from './types'
+import type { AuthenticatedUser, PurchaseOrder } from './types'
 
 type ViewId = ClientViewId
 
@@ -67,7 +62,6 @@ export default function App() {
   }, [])
 
   const nav = visibleMenuItems(user)
-  const chatbotEnabled = canUseChatbot(user)
   const currentView = nav.some((item) => item.id === view) ? view : ((nav[0]?.id ?? 'inventory') as ViewId)
 
   if (!authChecked) {
@@ -135,7 +129,6 @@ export default function App() {
         {currentView === 'inventory' && <InventoryPage />}
         {currentView === 'orders' && <OrdersPage user={user} />}
       </main>
-      <ChatbotOverlay enabled={chatbotEnabled} />
     </div>
   )
 }
@@ -296,7 +289,7 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
   }, [orders.data, selectedOrder])
 
   const canManageDisplayedOrder = Boolean(
-    displayedOrder && displayedOrder.status === 'PENDING' && canManagePurchaseOrder(user, displayedOrder),
+    displayedOrder && canCancelPurchaseOrder(user, displayedOrder),
   )
 
   const createMutation = useMutation({
@@ -485,102 +478,6 @@ function formatDate(value?: string): string {
 
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ko-KR')
-}
-
-function ChatbotOverlay({ enabled }: { enabled: boolean }) {
-  const [open, setOpen] = useState(false)
-  if (!enabled) {
-    return null
-  }
-  return (
-    <>
-      <button
-        className={`chat-fab ${open ? 'open' : ''}`}
-        onClick={() => setOpen((current) => !current)}
-        aria-label={open ? 'AI 챗봇 닫기' : 'AI 챗봇 열기'}
-      >
-        {open ? <X size={24} /> : <MessageCircle size={24} />}
-      </button>
-      {open && (
-        <div className="chat-drawer">
-          <div className="drawer-head">
-            <strong>AI 챗봇</strong>
-            <button className="icon-button" onClick={() => setOpen(false)} aria-label="AI 챗봇 닫기">
-              <X size={18} />
-            </button>
-          </div>
-          <ChatSession />
-        </div>
-      )}
-    </>
-  )
-}
-
-function ChatSession() {
-  const [draft, setDraft] = useState('')
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatMessages())
-
-  const sendMutation = useMutation({
-    mutationFn: (content: string) => sendChatMessage(content, messages),
-    onMutate: (content) => {
-      const userMessage: ChatMessage = {
-        messageId: crypto.randomUUID(),
-        role: 'user',
-        content,
-        createdAt: new Date().toISOString(),
-      }
-      setMessages(appendChatMessage(userMessage))
-    },
-    onSuccess: (message) => {
-      setMessages(appendChatMessage(message))
-    },
-    onError: () => {
-      const fallbackMessage: ChatMessage = {
-        messageId: crypto.randomUUID(),
-        role: 'assistant',
-        content: 'AI 채팅 API가 아직 준비되지 않았거나 접근 권한이 없습니다.',
-        createdAt: new Date().toISOString(),
-      }
-      setMessages(appendChatMessage(fallbackMessage))
-    },
-  })
-
-  function clearSessionChat(): void {
-    clearChatMessages()
-    setMessages([])
-  }
-
-  return (
-    <>
-      <div className="chat-history">
-        {messages.map((message) => (
-          <div className={`message ${message.role}`} key={message.messageId}>
-            <span>{message.content}</span>
-          </div>
-        ))}
-        {messages.length === 0 && <EmptyState title="재고나 발주에 대해 질문해보세요." />}
-      </div>
-      <form
-        className="chat-input"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!draft.trim()) {
-            return
-          }
-          sendMutation.mutate(draft.trim())
-          setDraft('')
-        }}
-      >
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="질문 입력" />
-        <button className="icon-button" disabled={sendMutation.isPending} aria-label="메시지 보내기">
-          <Send size={18} />
-        </button>
-        <button className="ghost-button" type="button" onClick={clearSessionChat}>
-          삭제
-        </button>
-      </form>
-    </>
-  )
 }
 
 function SelectField({
