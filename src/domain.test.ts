@@ -44,17 +44,15 @@ describe('inventory filters', () => {
 })
 
 describe('purchase order draft validation', () => {
-  it('requires center, product, positive quantity, and reason', () => {
+  it('requires product, positive quantity, and reason (store picks no center/warehouse)', () => {
     const errors = validatePurchaseOrderDraft({
-      centerId: '',
-      warehouseId: '',
       productId: '',
       quantity: '0',
       reason: '',
       expectedDate: '',
     })
 
-    expect(errors.centerId).toBeTruthy()
+    expect(errors.centerId).toBeUndefined()
     expect(errors.productId).toBeTruthy()
     expect(errors.quantity).toBeTruthy()
     expect(errors.reason).toBeTruthy()

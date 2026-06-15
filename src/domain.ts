@@ -105,9 +105,12 @@ export function filterInventory(
   })
 }
 
+/**
+ * Store-originated purchase request draft. The store comes from the logged-in user's membership,
+ * and the receiving center/warehouse are designated by an administrator at approval — so the store
+ * user does not pick them here.
+ */
 export type PurchaseOrderDraft = {
-  centerId: string
-  warehouseId: string
   productId: string
   quantity: string
   reason: string
@@ -116,9 +119,6 @@ export type PurchaseOrderDraft = {
 
 export function validatePurchaseOrderDraft(draft: PurchaseOrderDraft): Record<string, string> {
   const errors: Record<string, string> = {}
-  if (!draft.centerId) {
-    errors.centerId = '센터를 선택하세요.'
-  }
   if (!draft.productId) {
     errors.productId = '상품을 선택하세요.'
   }

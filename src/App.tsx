@@ -14,7 +14,7 @@ import {
 import {
   addPurchaseOrderItem,
   cancelPurchaseOrder,
-  createPurchaseOrder,
+  createStoreRequest,
   fetchCenters,
   fetchInventory,
   fetchProducts,
@@ -39,8 +39,6 @@ import type { AuthenticatedUser, PurchaseOrder } from './types'
 type ViewId = ClientViewId
 
 const emptyDraft: PurchaseOrderDraft = {
-  centerId: '',
-  warehouseId: '',
   productId: '',
   quantity: '1',
   reason: '',
@@ -275,11 +273,9 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null)
   const [managementMessage, setManagementMessage] = useState('')
   const orders = useQuery({ queryKey: ['purchase-orders'], queryFn: fetchPurchaseOrders })
-  const centers = useQuery({ queryKey: ['centers'], queryFn: fetchCenters })
-  const warehouses = useQuery({ queryKey: ['warehouses'], queryFn: fetchWarehouses })
   const products = useQuery({ queryKey: ['products'], queryFn: fetchProducts })
 
-  const hasEntryLoadError = orders.isError || centers.isError || warehouses.isError || products.isError
+  const hasEntryLoadError = orders.isError || products.isError
 
   const displayedOrder = useMemo(() => {
     if (!selectedOrder) {
@@ -299,7 +295,7 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
       if (Object.keys(validation).length > 0) {
         throw new Error('validation')
       }
-      const order = await createPurchaseOrder(draft.centerId, draft.warehouseId)
+      const order = await createStoreRequest()
       const withItem = await addPurchaseOrderItem(order.id, draft.productId, draft.quantity)
       return withItem
     },
@@ -343,26 +339,9 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
             createMutation.mutate()
           }}
         >
-          <SelectField label="센터" value={draft.centerId} error={errors.centerId} onChange={(value) => setDraft({ ...draft, centerId: value })}>
-            <option value="">센터 선택</option>
-            {(centers.data ?? []).map((center) => (
-              <option key={center.id} value={center.id}>
-                {center.name}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            label="창고"
-            value={draft.warehouseId}
-            onChange={(value) => setDraft({ ...draft, warehouseId: value })}
-          >
-            <option value="">창고 선택 안 함</option>
-            {(warehouses.data ?? []).map((warehouse) => (
-              <option key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
-              </option>
-            ))}
-          </SelectField>
+          <p className="hint">
+            발주 신청은 소속 매장으로 접수되며, 수령 센터·창고는 관리자 승인 시 지정됩니다.
+          </p>
           <SelectField label="상품" value={draft.productId} error={errors.productId} onChange={(value) => setDraft({ ...draft, productId: value })}>
             <option value="">상품 선택</option>
             {(products.data ?? []).map((product) => (
