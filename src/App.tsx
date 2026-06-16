@@ -5,18 +5,16 @@ import {
   Boxes,
   LogOut,
   Menu,
-  MessageCircle,
   PackageCheck,
   RefreshCw,
   Search,
-  Send,
   ShoppingCart,
   X,
 } from 'lucide-react'
 import {
   addPurchaseOrderItem,
   cancelPurchaseOrder,
-  createPurchaseOrder,
+  createStoreRequest,
   fetchCenters,
   fetchInventory,
   fetchProducts,
@@ -25,13 +23,10 @@ import {
   login,
   logout,
   refreshSession,
-  sendChatMessage,
   submitPurchaseOrder,
 } from './api'
-import { appendChatMessage, clearChatMessages, loadChatMessages } from './chatSessionStorage'
 import {
-  canManagePurchaseOrder,
-  canUseChatbot,
+  canCancelPurchaseOrder,
   filterInventory,
   isClientViewId,
   validatePurchaseOrderDraft,
@@ -39,13 +34,11 @@ import {
   type ClientViewId,
   type PurchaseOrderDraft,
 } from './domain'
-import type { AuthenticatedUser, ChatMessage, PurchaseOrder } from './types'
+import type { AuthenticatedUser, PurchaseOrder } from './types'
 
 type ViewId = ClientViewId
 
 const emptyDraft: PurchaseOrderDraft = {
-  centerId: '',
-  warehouseId: '',
   productId: '',
   quantity: '1',
   reason: '',
@@ -67,7 +60,6 @@ export default function App() {
   }, [])
 
   const nav = visibleMenuItems(user)
-  const chatbotEnabled = canUseChatbot(user)
   const currentView = nav.some((item) => item.id === view) ? view : ((nav[0]?.id ?? 'inventory') as ViewId)
 
   if (!authChecked) {
@@ -135,7 +127,6 @@ export default function App() {
         {currentView === 'inventory' && <InventoryPage />}
         {currentView === 'orders' && <OrdersPage user={user} />}
       </main>
-      <ChatbotOverlay enabled={chatbotEnabled} />
     </div>
   )
 }
@@ -282,11 +273,9 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null)
   const [managementMessage, setManagementMessage] = useState('')
   const orders = useQuery({ queryKey: ['purchase-orders'], queryFn: fetchPurchaseOrders })
-  const centers = useQuery({ queryKey: ['centers'], queryFn: fetchCenters })
-  const warehouses = useQuery({ queryKey: ['warehouses'], queryFn: fetchWarehouses })
   const products = useQuery({ queryKey: ['products'], queryFn: fetchProducts })
 
-  const hasEntryLoadError = orders.isError || centers.isError || warehouses.isError || products.isError
+  const hasEntryLoadError = orders.isError || products.isError
 
   const displayedOrder = useMemo(() => {
     if (!selectedOrder) {
@@ -296,7 +285,7 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
   }, [orders.data, selectedOrder])
 
   const canManageDisplayedOrder = Boolean(
-    displayedOrder && displayedOrder.status === 'PENDING' && canManagePurchaseOrder(user, displayedOrder),
+    displayedOrder && canCancelPurchaseOrder(user, displayedOrder),
   )
 
   const createMutation = useMutation({
@@ -306,7 +295,7 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
       if (Object.keys(validation).length > 0) {
         throw new Error('validation')
       }
-      const order = await createPurchaseOrder(draft.centerId, draft.warehouseId)
+      const order = await createStoreRequest()
       const withItem = await addPurchaseOrderItem(order.id, draft.productId, draft.quantity)
       return withItem
     },
@@ -350,26 +339,9 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
             createMutation.mutate()
           }}
         >
-          <SelectField label="센터" value={draft.centerId} error={errors.centerId} onChange={(value) => setDraft({ ...draft, centerId: value })}>
-            <option value="">센터 선택</option>
-            {(centers.data ?? []).map((center) => (
-              <option key={center.id} value={center.id}>
-                {center.name}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            label="창고"
-            value={draft.warehouseId}
-            onChange={(value) => setDraft({ ...draft, warehouseId: value })}
-          >
-            <option value="">창고 선택 안 함</option>
-            {(warehouses.data ?? []).map((warehouse) => (
-              <option key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
-              </option>
-            ))}
-          </SelectField>
+          <p className="hint">
+            발주 신청은 소속 매장으로 접수되며, 수령 센터·창고는 관리자 승인 시 지정됩니다.
+          </p>
           <SelectField label="상품" value={draft.productId} error={errors.productId} onChange={(value) => setDraft({ ...draft, productId: value })}>
             <option value="">상품 선택</option>
             {(products.data ?? []).map((product) => (
@@ -485,102 +457,6 @@ function formatDate(value?: string): string {
 
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ko-KR')
-}
-
-function ChatbotOverlay({ enabled }: { enabled: boolean }) {
-  const [open, setOpen] = useState(false)
-  if (!enabled) {
-    return null
-  }
-  return (
-    <>
-      <button
-        className={`chat-fab ${open ? 'open' : ''}`}
-        onClick={() => setOpen((current) => !current)}
-        aria-label={open ? 'AI 챗봇 닫기' : 'AI 챗봇 열기'}
-      >
-        {open ? <X size={24} /> : <MessageCircle size={24} />}
-      </button>
-      {open && (
-        <div className="chat-drawer">
-          <div className="drawer-head">
-            <strong>AI 챗봇</strong>
-            <button className="icon-button" onClick={() => setOpen(false)} aria-label="AI 챗봇 닫기">
-              <X size={18} />
-            </button>
-          </div>
-          <ChatSession />
-        </div>
-      )}
-    </>
-  )
-}
-
-function ChatSession() {
-  const [draft, setDraft] = useState('')
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatMessages())
-
-  const sendMutation = useMutation({
-    mutationFn: (content: string) => sendChatMessage(content, messages),
-    onMutate: (content) => {
-      const userMessage: ChatMessage = {
-        messageId: crypto.randomUUID(),
-        role: 'user',
-        content,
-        createdAt: new Date().toISOString(),
-      }
-      setMessages(appendChatMessage(userMessage))
-    },
-    onSuccess: (message) => {
-      setMessages(appendChatMessage(message))
-    },
-    onError: () => {
-      const fallbackMessage: ChatMessage = {
-        messageId: crypto.randomUUID(),
-        role: 'assistant',
-        content: 'AI 채팅 API가 아직 준비되지 않았거나 접근 권한이 없습니다.',
-        createdAt: new Date().toISOString(),
-      }
-      setMessages(appendChatMessage(fallbackMessage))
-    },
-  })
-
-  function clearSessionChat(): void {
-    clearChatMessages()
-    setMessages([])
-  }
-
-  return (
-    <>
-      <div className="chat-history">
-        {messages.map((message) => (
-          <div className={`message ${message.role}`} key={message.messageId}>
-            <span>{message.content}</span>
-          </div>
-        ))}
-        {messages.length === 0 && <EmptyState title="재고나 발주에 대해 질문해보세요." />}
-      </div>
-      <form
-        className="chat-input"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!draft.trim()) {
-            return
-          }
-          sendMutation.mutate(draft.trim())
-          setDraft('')
-        }}
-      >
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="질문 입력" />
-        <button className="icon-button" disabled={sendMutation.isPending} aria-label="메시지 보내기">
-          <Send size={18} />
-        </button>
-        <button className="ghost-button" type="button" onClick={clearSessionChat}>
-          삭제
-        </button>
-      </form>
-    </>
-  )
 }
 
 function SelectField({

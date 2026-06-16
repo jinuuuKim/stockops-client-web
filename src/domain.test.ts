@@ -3,7 +3,6 @@ import {
   canAccess,
   canCancelPurchaseOrder,
   canManagePurchaseOrder,
-  canUseChatbot,
   filterInventory,
   isClientViewId,
   isLowStock,
@@ -21,9 +20,8 @@ const user: AuthenticatedUser = {
 }
 
 describe('navigation access', () => {
-  it('keeps chat out of the menu while allowing the floating chatbot by role', () => {
+  it('shows only inventory and orders in the client menu', () => {
     expect(visibleMenuItems(user).map((item) => item.id)).toEqual(['inventory', 'orders'])
-    expect(canUseChatbot(user)).toBe(true)
     expect(canAccess({ ...user, role: 'STORE_STAFF' }, { id: 'orders', label: '발주', permission: 'PURCHASE_ORDER_CREATE' })).toBe(false)
   })
 })
@@ -46,17 +44,15 @@ describe('inventory filters', () => {
 })
 
 describe('purchase order draft validation', () => {
-  it('requires center, product, positive quantity, and reason', () => {
+  it('requires product, positive quantity, and reason (store picks no center/warehouse)', () => {
     const errors = validatePurchaseOrderDraft({
-      centerId: '',
-      warehouseId: '',
       productId: '',
       quantity: '0',
       reason: '',
       expectedDate: '',
     })
 
-    expect(errors.centerId).toBeTruthy()
+    expect(errors.centerId).toBeUndefined()
     expect(errors.productId).toBeTruthy()
     expect(errors.quantity).toBeTruthy()
     expect(errors.reason).toBeTruthy()

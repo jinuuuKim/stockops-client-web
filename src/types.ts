@@ -75,7 +75,8 @@ export type PurchaseOrder = {
   status: string
   requestedAt?: string
   createdAt?: string
-  requestedBy?: number
+  // Server serializes requestedBy as the User entity; a bare id is also tolerated by the UI.
+  requestedBy?: number | { id: number } | null
   requestingCenter?: Center
   targetWarehouse?: Warehouse
   items?: Array<{
@@ -86,14 +87,3 @@ export type PurchaseOrder = {
   }>
 }
 
-export type ChatMessage = {
-  messageId: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  createdAt: string
-}
-
-export type ChatRequest = {
-  content: string
-  context: ChatMessage[]
-}
