@@ -155,11 +155,23 @@ button {
   min-width: 260px;
 }
 
+/* Toolbar selects share the row and wrap as needed instead of each taking a
+   full-width line (the global width:100% on select would force one per row). */
+.toolbar select {
+  flex: 1 1 160px;
+  width: auto;
+}
+
 .search-box,
 .checkline {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.checkline {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 input,
@@ -171,6 +183,14 @@ textarea {
   padding: 10px 12px;
   background: #ffffff;
   color: #16202c;
+}
+
+/* Checkboxes/radios must keep their intrinsic size; the 100% rule above would
+   otherwise stretch them across the flex row and crush adjacent labels. */
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  padding: 0;
 }
 
 textarea {
@@ -308,95 +328,11 @@ textarea {
   background: #f8fafc;
 }
 
-.chat-fab {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 40;
-  display: grid;
-  width: 56px;
-  height: 56px;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  color: #ffffff;
-  background: #0f766e;
-  box-shadow: 0 16px 30px rgba(15, 118, 110, 0.3);
-}
-
-.chat-fab.open {
-  background: #16202c;
-  box-shadow: 0 16px 30px rgba(22, 32, 44, 0.28);
-}
-
-.chat-drawer {
-  position: fixed;
-  right: 24px;
-  bottom: 92px;
-  z-index: 39;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(420px, calc(100vw - 32px));
-  height: min(620px, calc(100vh - 120px));
-  border: 1px solid #d7dee8;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.18);
-  overflow: hidden;
-}
-
 .drawer-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #e5ebf3;
-  padding: 12px;
-}
-
-.chat-panel {
-  display: grid;
-  grid-template-rows: minmax(280px, 1fr) auto;
-  min-height: 480px;
-}
-
-.chat-panel.embedded {
-  min-height: 620px;
-}
-
-.chat-history {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px;
-}
-
-.message {
-  display: flex;
-}
-
-.message span {
-  max-width: 82%;
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: #eef2f6;
-}
-
-.message.user {
-  justify-content: flex-end;
-}
-
-.message.user span {
-  color: #ffffff;
-  background: #0f766e;
-}
-
-.chat-input {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px auto;
-  gap: 8px;
-  border-top: 1px solid #e5ebf3;
   padding: 12px;
 }
 
@@ -451,21 +387,5 @@ textarea {
 
   .table-row.head {
     display: none;
-  }
-
-  .chat-drawer {
-    right: 0;
-    bottom: 0;
-    width: 100vw;
-    height: min(72vh, 620px);
-    border-right: 0;
-    border-bottom: 0;
-    border-left: 0;
-    border-radius: 8px 8px 0 0;
-  }
-
-  .chat-fab {
-    right: 16px;
-    bottom: 16px;
   }
 }

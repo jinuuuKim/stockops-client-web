@@ -1,6 +1,6 @@
 # StockOps Client Web
 
-Store/client-facing StockOps portal for scoped inventory lookup, purchase-order requests, purchase-order history, and AI chat access.
+Store/client-facing StockOps portal for scoped inventory lookup, purchase-order requests, and purchase-order history.
 
 ## Features
 
@@ -8,7 +8,6 @@ Store/client-facing StockOps portal for scoped inventory lookup, purchase-order 
 - Role and permission based navigation for `ADMIN`, `CENTER`, `WAREHOUSE`, `STORE_MANAGER`, and `STORE_STAFF`
 - Inventory lookup with keyword, location, and low-stock filters
 - Purchase-order request flow using the current StockOps API contract
-- AI chatbot overlay prepared for `/api/v1/ai/chat` and `/api/v1/ai/chat/history`
 
 ## Local Setup
 
