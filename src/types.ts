@@ -18,6 +18,10 @@ export type AuthenticatedUser = {
   email: string
   name: string
   role: RoleName
+  // Affiliated store id; null when the server says the user is not store-bound. Absent
+  // (undefined) on older payloads that predate the field. Only store-bound users may create
+  // store purchase requests, so the orders form gates on `storeId === null` (positively null).
+  storeId?: number | null
   permissions: string[]
   scopeMetadata?: ScopeMetadata
 }

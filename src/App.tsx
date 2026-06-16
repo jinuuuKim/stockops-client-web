@@ -28,6 +28,7 @@ import {
 import {
   canCancelPurchaseOrder,
   filterInventory,
+  groupInventoryByBarcode,
   isClientViewId,
   validatePurchaseOrderDraft,
   visibleMenuItems,
@@ -202,6 +203,7 @@ function InventoryPage() {
     () => filterInventory(inventory.data ?? [], { query, centerId, warehouseId, lowStockOnly }),
     [centerId, inventory.data, lowStockOnly, query, warehouseId],
   )
+  const groupedRows = useMemo(() => groupInventoryByBarcode(rows), [rows])
 
   return (
     <section className="panel">
@@ -244,22 +246,24 @@ function InventoryPage() {
             <span>가용</span>
             <span>상태</span>
           </div>
-          {rows.map((item) => {
-            const available = item.availableQuantity ?? item.quantity - (item.reservedQuantity ?? 0)
-            return (
-              <div className="table-row" role="row" key={item.id}>
+          <div className="table-body scroll-body">
+            {groupedRows.map((row) => (
+              <div className="table-row" role="row" key={row.key}>
                 <span>
-                  <strong>{item.productName ?? `상품 #${item.productId}`}</strong>
-                  <small>{item.productBarcode}</small>
+                  <strong>{row.productName ?? `상품 #${row.productId}`}</strong>
+                  <small>
+                    {row.productBarcode ?? '바코드 없음'}
+                    {row.rowCount > 1 ? ` · ${row.rowCount}건 합산` : ''}
+                  </small>
                 </span>
-                <span>{item.locationName ?? item.locationCode ?? '-'}</span>
-                <span>{item.lotNumber ?? '-'}</span>
-                <span>{available.toLocaleString()}</span>
-                <span className={available <= (item.safetyStockQuantity ?? -1) ? 'badge warn' : 'badge'}>{item.status ?? 'ACTIVE'}</span>
+                <span>{row.locationLabel}</span>
+                <span>{row.lotLabel}</span>
+                <span>{row.totalAvailable.toLocaleString()}</span>
+                <span className={row.isLow ? 'badge warn' : 'badge'}>{row.status}</span>
               </div>
-            )
-          })}
-          {rows.length === 0 && <EmptyState title="조건에 맞는 재고가 없습니다." />}
+            ))}
+            {groupedRows.length === 0 && <EmptyState title="조건에 맞는 재고가 없습니다." />}
+          </div>
         </div>
       )}
     </section>
@@ -276,6 +280,9 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
   const products = useQuery({ queryKey: ['products'], queryFn: fetchProducts })
 
   const hasEntryLoadError = orders.isError || products.isError
+  // Only store-bound users may create store purchase requests (server-enforced). Gate on a
+  // positively-null storeId so older payloads (field absent → undefined) keep the form enabled.
+  const isNonStoreUser = user.storeId === null
 
   const displayedOrder = useMemo(() => {
     if (!selectedOrder) {
@@ -336,12 +343,21 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
           className="stack-form"
           onSubmit={(event) => {
             event.preventDefault()
+            if (isNonStoreUser) {
+              return
+            }
             createMutation.mutate()
           }}
         >
-          <p className="hint">
-            발주 신청은 소속 매장으로 접수되며, 수령 센터·창고는 관리자 승인 시 지정됩니다.
-          </p>
+          {isNonStoreUser ? (
+            <p className="hint" role="note">
+              이 계정은 소속 매장이 없어 발주 신청을 할 수 없습니다. 지점 소속 계정으로 로그인하세요.
+            </p>
+          ) : (
+            <p className="hint">
+              발주 신청은 소속 매장으로 접수되며, 수령 센터·창고는 관리자 승인 시 지정됩니다.
+            </p>
+          )}
           <SelectField label="상품" value={draft.productId} error={errors.productId} onChange={(value) => setDraft({ ...draft, productId: value })}>
             <option value="">상품 선택</option>
             {(products.data ?? []).map((product) => (
@@ -357,8 +373,10 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
             <textarea value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} />
             {errors.reason && <small className="error-text">{errors.reason}</small>}
           </label>
-          {createMutation.isError && createMutation.error.message !== 'validation' && <p className="error-text">발주 생성에 실패했습니다.</p>}
-          <button className="primary-button" disabled={createMutation.isPending}>
+          {createMutation.isError && createMutation.error.message !== 'validation' && (
+            <p className="error-text">{createMutation.error.message || '발주 생성에 실패했습니다.'}</p>
+          )}
+          <button className="primary-button" disabled={isNonStoreUser || createMutation.isPending}>
             {createMutation.isPending ? '제출 중' : '발주 신청'}
           </button>
         </form>
@@ -370,7 +388,7 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
         ) : orders.isError ? (
           <EmptyState title="발주 내역 조회에 실패했습니다." />
         ) : (
-          <div className="order-list">
+          <div className="order-list scroll-list">
             {(orders.data ?? []).map((order) => {
               const isSubmitting = submitMutation.isPending && submitMutation.variables === order.id
               return (

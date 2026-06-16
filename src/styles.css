@@ -203,6 +203,15 @@ textarea {
   gap: 6px;
 }
 
+/* Body rows scroll within a bounded height so a long inventory list can't stretch the page;
+   the header row stays fixed above. */
+.scroll-body {
+  display: grid;
+  gap: 6px;
+  max-height: 58vh;
+  overflow-y: auto;
+}
+
 .table-row {
   display: grid;
   grid-template-columns: 1.5fr 1.2fr 1fr 0.5fr 0.6fr;
@@ -247,6 +256,13 @@ textarea {
 .order-list {
   display: grid;
   gap: 10px;
+}
+
+/* Bounded, scrollable 발주 내역 list so growing order history keeps the page a fixed length. */
+.scroll-list {
+  max-height: 58vh;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .order-item {

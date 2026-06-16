@@ -4,6 +4,7 @@ import {
   canCancelPurchaseOrder,
   canManagePurchaseOrder,
   filterInventory,
+  groupInventoryByBarcode,
   isClientViewId,
   isLowStock,
   validatePurchaseOrderDraft,
@@ -40,6 +41,42 @@ describe('inventory filters', () => {
   it('filters by query and low stock flag', () => {
     expect(filterInventory(rows, { query: '우유', lowStockOnly: true }).map((item) => item.id)).toEqual([1])
     expect(filterInventory(rows, { query: '닭', warehouseId: '10', lowStockOnly: false })).toEqual([])
+  })
+})
+
+describe('inventory barcode grouping', () => {
+  const rows: InventoryItem[] = [
+    { id: 1, productName: '오징어링', productBarcode: '8800001', locationName: 'A-01', lotNumber: 'L1', quantity: 10, availableQuantity: 10, safetyStockQuantity: 25 },
+    { id: 2, productName: '오징어링', productBarcode: '8800001', locationName: 'B-02', lotNumber: 'L2', quantity: 8, availableQuantity: 8, safetyStockQuantity: 25 },
+    { id: 3, productName: '우유', productBarcode: '8800002', locationName: 'A-01', lotNumber: 'L9', quantity: 50, availableQuantity: 50, safetyStockQuantity: 20 },
+  ]
+
+  it('collapses same-barcode rows, summing availability and counting locations/lots', () => {
+    const grouped = groupInventoryByBarcode(rows)
+    expect(grouped).toHaveLength(2)
+
+    const squid = grouped[0]
+    expect(squid.productBarcode).toBe('8800001')
+    expect(squid.rowCount).toBe(2)
+    expect(squid.totalAvailable).toBe(18)
+    expect(squid.locationLabel).toBe('2개 위치')
+    expect(squid.lotLabel).toBe('2개 로트')
+    expect(squid.isLow).toBe(true) // 18 <= safety 25
+
+    const milk = grouped[1]
+    expect(milk.rowCount).toBe(1)
+    expect(milk.locationLabel).toBe('A-01')
+    expect(milk.isLow).toBe(false)
+  })
+
+  it('falls back to product id when a barcode is missing', () => {
+    const grouped = groupInventoryByBarcode([
+      { id: 1, productId: 7, productName: '무바코드', locationName: 'A', quantity: 3, availableQuantity: 3 },
+      { id: 2, productId: 7, productName: '무바코드', locationName: 'B', quantity: 4, availableQuantity: 4 },
+    ])
+    expect(grouped).toHaveLength(1)
+    expect(grouped[0].totalAvailable).toBe(7)
+    expect(grouped[0].productBarcode).toBeUndefined()
   })
 })
 
