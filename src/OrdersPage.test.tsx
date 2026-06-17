@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { refreshSession } from './api'
 
 // Regression guard for the white-screen crash on entering 발주: the server returns
 // purchase orders / products as full JPA-entity serializations (nested objects, dates,
@@ -21,6 +22,7 @@ vi.mock('./api', async () => {
         email: 'store@stockops.local',
         name: 'Store Manager',
         role: 'STORE_MANAGER',
+        storeId: 55,
         permissions: ['INVENTORY_READ', 'PURCHASE_ORDER_READ', 'PURCHASE_ORDER_CREATE', 'PRODUCT_READ'],
       },
     }),
@@ -80,5 +82,38 @@ describe('orders page rendering', () => {
     fireEvent.click(screen.getByRole('button', { name: /발주/ }))
     fireEvent.click(await screen.findByText('PO-20260615-0001'))
     await screen.findByRole('heading', { name: 'PO-20260615-0001' })
+  })
+
+  it('keeps 발주 신청 enabled for a store-bound user (storeId set)', async () => {
+    renderApp()
+    await screen.findByText('Store Manager')
+    fireEvent.click(screen.getByRole('button', { name: /발주/ }))
+    const submit = await screen.findByRole('button', { name: '발주 신청' })
+    expect(submit).not.toBeDisabled()
+  })
+})
+
+describe('orders form store gating', () => {
+  it('disables 발주 신청 and shows a notice when the server says storeId is null', async () => {
+    vi.mocked(refreshSession).mockResolvedValueOnce({
+      accessToken: 'token',
+      tokenType: 'Bearer',
+      expiresIn: 3600,
+      user: {
+        id: 99,
+        email: 'admin@stockops.com',
+        name: 'Admin User',
+        role: 'ADMIN',
+        storeId: null,
+        permissions: ['INVENTORY_READ', 'PURCHASE_ORDER_READ', 'PURCHASE_ORDER_CREATE', 'PRODUCT_READ'],
+      },
+    })
+
+    renderApp()
+    await screen.findByText('Admin User')
+    fireEvent.click(screen.getByRole('button', { name: /발주/ }))
+
+    expect(await screen.findByText(/소속 매장이 없어 발주 신청을 할 수 없습니다/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '발주 신청' })).toBeDisabled()
   })
 })

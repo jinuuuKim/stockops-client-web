@@ -80,10 +80,71 @@ export function canCancelPurchaseOrder(user: AuthenticatedUser | null, order: Pu
   return !NON_CANCELLABLE_ORDER_STATUSES.has((order.status ?? '').toUpperCase())
 }
 
+export function availableQuantityOf(item: InventoryItem): number {
+  return item.availableQuantity ?? item.quantity - (item.reservedQuantity ?? 0)
+}
+
 export function isLowStock(item: InventoryItem): boolean {
-  const available = item.availableQuantity ?? item.quantity - (item.reservedQuantity ?? 0)
   const safety = item.safetyStockQuantity ?? 0
-  return safety > 0 && available <= safety
+  return safety > 0 && availableQuantityOf(item) <= safety
+}
+
+/**
+ * A barcode-collapsed inventory row: all stock for one product (same barcode, falling back to
+ * product id) merged into a single line with summed availability and location/lot counts. Keeps
+ * the list short when the same product sits across many locations/lots.
+ */
+export type GroupedInventoryRow = {
+  key: string
+  productId?: number
+  productName?: string
+  productBarcode?: string
+  totalAvailable: number
+  locationLabel: string
+  lotLabel: string
+  rowCount: number
+  status: string
+  safetyStockQuantity?: number
+  isLow: boolean
+}
+
+export function groupInventoryByBarcode(items: InventoryItem[]): GroupedInventoryRow[] {
+  const groups = new Map<string, InventoryItem[]>()
+  const order: string[] = []
+  for (const item of items) {
+    const barcode = item.productBarcode?.trim()
+    const key = barcode ? `b:${barcode}` : item.productId != null ? `p:${item.productId}` : `i:${item.id}`
+    const bucket = groups.get(key)
+    if (bucket) {
+      bucket.push(item)
+    } else {
+      groups.set(key, [item])
+      order.push(key)
+    }
+  }
+
+  return order.map((key) => {
+    const rows = groups.get(key)!
+    const first = rows[0]
+    const totalAvailable = rows.reduce((sum, item) => sum + availableQuantityOf(item), 0)
+    const locations = new Set(rows.map((item) => item.locationName ?? item.locationCode ?? '-'))
+    const lots = new Set(rows.map((item) => item.lotNumber ?? '-'))
+    const statuses = new Set(rows.map((item) => item.status ?? 'ACTIVE'))
+    const safety = first.safetyStockQuantity
+    return {
+      key,
+      productId: first.productId,
+      productName: first.productName,
+      productBarcode: first.productBarcode,
+      totalAvailable,
+      locationLabel: locations.size === 1 ? [...locations][0] : `${locations.size}개 위치`,
+      lotLabel: lots.size === 1 ? [...lots][0] : `${lots.size}개 로트`,
+      rowCount: rows.length,
+      status: statuses.size === 1 ? [...statuses][0] : '혼합',
+      safetyStockQuantity: safety,
+      isLow: (safety ?? 0) > 0 && totalAvailable <= (safety ?? 0),
+    }
+  })
 }
 
 export function filterInventory(

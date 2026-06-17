@@ -24,7 +24,16 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   })
 
   if (!response.ok) {
-    const message = await response.text()
+    const text = await response.text()
+    let message = text
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed && typeof parsed.message === 'string') {
+        message = parsed.message
+      }
+    } catch {
+      // Non-JSON error body; fall back to the raw text.
+    }
     throw new Error(message || `HTTP ${response.status}`)
   }
 
