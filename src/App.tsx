@@ -437,7 +437,7 @@ function OrdersPage({ user }: { user: AuthenticatedUser }) {
               </div>
             </div>
             <h4>품목</h4>
-            <div className="order-list">
+            <div className="order-list scroll-list">
               {(displayedOrder.items ?? []).map((item) => (
                 <article className="order-item" key={item.id}>
                   <div>
